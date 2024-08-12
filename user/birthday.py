@@ -19,23 +19,31 @@ class Birthday:
         self.ensure_db()
 
     def ensure_db(self):
+        # Ensure the directory exists
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-        if not os.path.exists(self.db_path):
-            self.logger.info("Database does not exist. Creating a new database.")
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            cursor.execute("""CREATE TABLE IF NOT EXISTS birthdays (
-                user_id INTEGER,
-                guild_id INTEGER,
-                user_name TEXT,
-                birthday TEXT,
-                PRIMARY KEY (user_id, guild_id)
-                );""")
-            conn.commit()
-            conn.close()
-            self.logger.info("Database and table created successfully.")
-        else:
-            self.logger.info("Database already exists.")
+
+        # Connect to the database
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        # Create the birthdays table if it doesn't exist
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS birthdays (
+            user_id INTEGER,
+            guild_id INTEGER,
+            user_name TEXT,
+            birthday TEXT,
+            PRIMARY KEY (user_id, guild_id)
+            );
+        """)
+
+        # You can log or print to ensure this step was reached
+        self.logger.info("Birthday table ensured")
+
+        # Commit the changes and close the connection
+        conn.commit()
+        conn.close()
+
 
     async def set_birthday(self, interaction: discord.Interaction, user_id, guild_id, birthday):
         if not self.consent_manager.has_consent(user_id, guild_id):
