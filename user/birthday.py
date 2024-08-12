@@ -2,7 +2,10 @@ import discord
 from discord.ext import tasks
 import sqlite3
 from logger import logger
-import datetime
+from datetime import datetime
+import os
+from user_data.consent import ConsentManager
+from user_data.data_access import DataAccessManager
 
 
 class Birthday:
@@ -10,24 +13,35 @@ class Birthday:
         self.client = client
         self.db_path = "data/EONA.db"
         self.logger = logger
+        self.consent_manager = ConsentManager(self.db_path)
+        self.data_access_manager = DataAccessManager(self.db_path)
 
         self.ensure_db()
 
     def ensure_db(self):
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        cursor.execute("""CREATE TABLE IF NOT EXISTS birthdays (
-            user_id INTEGER,
-            guild_id INTEGER,
-            user_name TEXT,
-            birthday TEXT,
-            PRIMARY KEY (user_id, guild_id)
-            );""")
-        conn.commit()
-        conn.close()
-        self.logger.info("Birthday table ensured")
+        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+        if not os.path.exists(self.db_path):
+            self.logger.info("Database does not exist. Creating a new database.")
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute("""CREATE TABLE IF NOT EXISTS birthdays (
+                user_id INTEGER,
+                guild_id INTEGER,
+                user_name TEXT,
+                birthday TEXT,
+                PRIMARY KEY (user_id, guild_id)
+                );""")
+            conn.commit()
+            conn.close()
+            self.logger.info("Database and table created successfully.")
+        else:
+            self.logger.info("Database already exists.")
 
-    async def set_birthday(self, user_id, guild_id, birthday):
+    async def set_birthday(self, interaction: discord.Interaction, user_id, guild_id, birthday):
+        if not self.consent_manager.has_consent(user_id, guild_id):
+            await self.consent_manager.request_consent(interaction)
+            return  # Exit early since consent hasn't been given yet
+
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute("""INSERT INTO birthdays (user_id, guild_id, birthday)
@@ -37,7 +51,10 @@ class Birthday:
         conn.commit()
         conn.close()
         self.logger.info(f"{user_id}! Your birthday was set to {birthday}")
+        await interaction.response.send_message(f"Your birthday has been set to {birthday}.", ephemeral=True)
 
+    async def delete_birthday(self, user_id, guild_id):
+        self.data_access_manager.delete_data(user_id, guild_id)
 
     async def get_birthday(self, user_id, guild_id):
         conn = sqlite3.connect(self.db_path)
@@ -69,6 +86,24 @@ class Birthday:
         self.logger.info("Birthday module loaded")
 
     def setup(self, tree: discord.app_commands.CommandTree):
+        @tree.command(name="consent", description="Give consent for data storage.")
+        async def consent_command(interaction: discord.Interaction):
+            self.consent_manager.give_consent(interaction.user.id, interaction.guild.id)
+            await interaction.response.send_message(f"{interaction.user.mention}, your consent has been recorded.", ephemeral=True)
+
+        @tree.command(name="view_data", description="View your stored data.")
+        async def view_data_command(interaction: discord.Interaction):
+            data = self.data_access_manager.view_user_data(interaction.user.id, interaction.guild.id)
+            if data:
+                await interaction.response.send_message(f"{interaction.user.mention}, your stored data: {data}", ephemeral=True)
+            else:
+                await interaction.response.send_message(f"{interaction.user.mention}, no data found.", ephemeral=True)
+
+        @tree.command(name="delete_data", description="Delete your stored data.")
+        async def delete_data_command(interaction: discord.Interaction):
+            self.data_access_manager.delete_user_data(interaction.user.id, interaction.guild.id)
+            await interaction.response.send_message(f"{interaction.user.mention}, your data has been deleted.", ephemeral=True)
+
         @tree.command(name="set_birthday", description="Set your birthday (YYYY-MM-DD)")
         async def set_birthday_command(interaction: discord.Interaction):
             await interaction.response.send_modal(BirthdayModal(self))
@@ -83,6 +118,12 @@ class Birthday:
             else:
                 await interaction.response.send_message("Your birthday has not been set. Please use `/set_birthday` to set your birthday.", ephemeral=True)
 
+        if not tree.get_command("consent"):
+            tree.add_command(consent_command)
+        if not tree.get_command("view_data"):
+            tree.add_command(view_data_command)
+        if not tree.get_command("delete_data"):
+            tree.add_command(delete_data_command)
         if not tree.get_command("set_birthday"):
             tree.add_command(set_birthday_command)
         if not tree.get_command("get_birthday"):
@@ -100,11 +141,14 @@ class BirthdayModal(discord.ui.Modal, title="Set your birthday"):
         user_id = str(interaction.user.id)
         guild_id = str(interaction.guild.id)
         try:
-            birthday = self.birthday.value
-            await self.birthday_module.set_birthday(user_id, guild_id, birthday)
-            await interaction.response.send_message(f"Your birthday has been set to {birthday}", ephemeral=True)
-        except ValueError as e:
-            await interaction.response.send_message(str(e), ephemeral=True)
+            # Validate the date format
+            birthday_str = self.birthday.value
+            birthday = datetime.strptime(birthday_str, "%Y-%m-%d").date()
+
+            # Proceed to set the birthday if valid
+            await self.birthday_module.set_birthday(interaction, user_id, guild_id, birthday_str)
+        except ValueError:
+            await interaction.response.send_message("Invalid date format. Please enter the date in YYYY-MM-DD format.", ephemeral=True)
 
 
 def setup(client):

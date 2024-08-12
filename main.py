@@ -27,7 +27,7 @@ class EONA(discord.Client):
             logger.error("config.py not found")
         try:
             if config["modules"]["birthday"]["enabled"]:
-                from birthday import Birthday
+                from user.birthday import Birthday
                 birthday = Birthday(self)
                 birthday.setup(self.tree)
                 logger.info("Birthday module loaded")
