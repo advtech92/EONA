@@ -1,7 +1,7 @@
 # Privacy Policy
 
 ## Introduction
-Your privacy is important to us. This Privacy Policy explains how we collect, use, and protect your personal data when you use our Discord bot, **[Your Bot Name]**. By using the bot, you agree to the collection and use of information in accordance with this policy.
+Your privacy is important to us. This Privacy Policy explains how we collect, use, and protect your personal data when you use our Discord bot, **Elysia**. By using the bot, you agree to the collection and use of information in accordance with this policy.
 
 ## Data We Collect
 

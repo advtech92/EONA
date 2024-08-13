@@ -7,13 +7,13 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
-log_file = "logs/EONA.log"
+log_file = "logs/Elysia.log"
 handler = RotatingFileHandler(log_file, maxBytes=1e6, backupCount=5)
 formatter = logging.Formatter(
     "%(asctime)s:%(levelname)s:%(name)s: %(message)s")
 handler.setFormatter(formatter)
 
 
-logger = logging.getLogger("EONA")
+logger = logging.getLogger("Elysia")
 logger.addHandler(handler)
 logger.setLevel(logging.INFO)

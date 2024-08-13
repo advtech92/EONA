@@ -2,7 +2,7 @@ from config import config
 import discord
 from logger import logger
 
-logger.info("Starting EONA...")
+logger.info("Starting Elysia...")
 
 TOKEN = config["TOKEN"]
 

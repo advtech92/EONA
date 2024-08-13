@@ -1,7 +1,7 @@
 # Terms of Service
 
 ## Introduction
-Welcome to **[Your Bot Name]**. By using our Discord bot, you agree to these Terms of Service. Please read them carefully.
+Welcome to **Elysia**. By using our Discord bot, you agree to these Terms of Service. Please read them carefully.
 
 ## Use of the Bot
 - **Compliance:** You agree to use the bot in compliance with all applicable laws and Discord's Terms of Service.
