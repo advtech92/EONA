@@ -1,65 +1,82 @@
 import discord
-from discord.ext import tasks
+from discord import app_commands
 import sqlite3
-from logger import logger
-from datetime import datetime
 import os
-from user_data.consent import ConsentManager
-from user_data.data_access import DataAccessManager
+from logger import logger
+from data_management.consent import ConsentManager
+from data_management.data_access import DataAccessManager
+import datetime
+import config
 
 
 class Birthday:
     def __init__(self, client):
         self.client = client
-        self.db_path = "data/Elysia.db"
+        self.db_path = "data/EONA.db"
         self.logger = logger
         self.consent_manager = ConsentManager(self.db_path)
         self.data_access_manager = DataAccessManager(self.db_path)
+        self.birthday_channel_id = None  # Initially unset
 
+        # Ensure that the database and tables are set up
         self.ensure_db()
+        self.setup_commands()
 
     def ensure_db(self):
-        # Ensure the directory exists
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
 
-        # Connect to the database
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-
-        # Create the birthdays table if it doesn't exist
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS birthdays (
-            user_id INTEGER,
-            guild_id INTEGER,
-            user_name TEXT,
-            birthday TEXT,
-            PRIMARY KEY (user_id, guild_id)
+                user_id INTEGER,
+                guild_id INTEGER,
+                user_name TEXT,
+                birthday TEXT,
+                PRIMARY KEY (user_id, guild_id)
             );
         """)
-
-        # You can log or print to ensure this step was reached
-        self.logger.info("Birthday table ensured")
-
-        # Commit the changes and close the connection
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS settings (
+                guild_id INTEGER PRIMARY KEY,
+                birthday_channel_id INTEGER
+            );
+        """)
         conn.commit()
         conn.close()
 
-
-    async def set_birthday(self, interaction: discord.Interaction, user_id, guild_id, birthday):
-        if not self.consent_manager.has_consent(user_id, guild_id):
-            await self.consent_manager.request_consent(interaction)
-            return  # Exit early since consent hasn't been given yet
-
+    def set_birthday_channel(self, guild_id, channel_id):
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        cursor.execute("""INSERT INTO birthdays (user_id, guild_id, birthday)
-                       VALUES (?, ?, ?) ON CONFLICT(user_id, guild_id)
-                       DO UPDATE SET birthday = excluded.birthday;""",
-                       (user_id, guild_id, birthday))
+        cursor.execute("""
+            INSERT INTO settings (guild_id, birthday_channel_id) 
+            VALUES (?, ?)
+            ON CONFLICT(guild_id) 
+            DO UPDATE SET birthday_channel_id = excluded.birthday_channel_id;
+        """, (guild_id, channel_id))
         conn.commit()
         conn.close()
-        self.logger.info(f"{user_id}! Your birthday was set to {birthday}")
-        await interaction.response.send_message(f"Your birthday has been set to {birthday}.", ephemeral=True)
+        self.birthday_channel_id = channel_id  # Store in the instance
+
+    def get_birthday_channel(self, guild_id):
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT birthday_channel_id FROM settings WHERE guild_id = ?", (guild_id,))
+        row = cursor.fetchone()
+        conn.close()
+
+        if row and row[0]:
+            return row[0]  # Return the set channel ID
+        else:
+            return config.DEFAULT_CHANNEL_ID  # Fall back to default from config
+
+    async def send_birthday_alert(self, guild, message):
+        channel_id = self.get_birthday_channel(guild.id)
+        channel = guild.get_channel(channel_id)
+        if channel:
+            await channel.send(message)
+        else:
+            self.logger.error(f"Channel with ID {channel_id} not found in guild {guild.name}")
 
     async def delete_birthday(self, user_id, guild_id):
         self.data_access_manager.delete_data(user_id, guild_id)
@@ -77,23 +94,31 @@ class Birthday:
         today = datetime.date.today().strftime("%Y-%m-%d")
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        cursor.execute("SELECT user_id, guild_id FROM birthdays where birthday = ?", (today,))
+        cursor.execute("SELECT user_id, guild_id FROM birthdays WHERE birthday = ?", (today,))
         rows = cursor.fetchall()
         conn.close()
+
         for user_id, guild_id in rows:
             guild = self.client.get_guild(int(guild_id))
             if guild:
                 user = guild.get_member(int(user_id))
                 if user:
-                    channel = guild.system_channel or next((ch for ch in guild.text_channels if ch.permissions_for(guild.me).send_messages), None)
-                    if channel:
-                        await channel.send(f"Happy birthday {user.mention}! Happy birthday! 🎉🎂")
+                    message = f"Happy birthday {user.mention}! 🎉🎂"
+                    await self.send_birthday_alert(guild, message)
 
     async def setup_hook(self):
         self.check_birthdays.start()
         self.logger.info("Birthday module loaded")
 
     def setup(self, tree: discord.app_commands.CommandTree):
+        @tree.command(name="set_birthday_channel", description="Set the channel for birthday alerts")
+        @app_commands.checks.has_permissions(administrator=True)
+        async def set_birthday_channel(interaction: discord.Interaction, channel: discord.TextChannel):
+            guild_id = interaction.guild.id
+            self.set_birthday_channel(guild_id, channel.id)
+            await interaction.response.send_message(f"Birthday alerts will now be sent to {channel.mention}.", ephemeral=True)
+
+        self.client.tree.add_command(set_birthday_channel)
         @tree.command(name="consent", description="Give consent for data storage.")
         async def consent_command(interaction: discord.Interaction):
             self.consent_manager.give_consent(interaction.user.id, interaction.guild.id)
