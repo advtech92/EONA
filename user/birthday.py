@@ -6,7 +6,7 @@ import os
 from logger import logger
 from user_data.consent import ConsentManager
 from user_data.data_access import DataAccessManager
-import datetime
+from datetime import datetime
 import config
 
 
