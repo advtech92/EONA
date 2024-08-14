@@ -21,7 +21,6 @@ class Birthday:
 
         # Ensure that the database and tables are set up
         self.ensure_db()
-        self.setup_commands()
 
     def ensure_db(self):
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
@@ -119,7 +118,7 @@ class Birthday:
             self.set_birthday_channel(guild_id, channel.id)
             await interaction.response.send_message(f"Birthday alerts will now be sent to {channel.mention}.", ephemeral=True)
 
-        self.client.tree.add_command(set_birthday_channel)
+
         @tree.command(name="consent", description="Give consent for data storage.")
         async def consent_command(interaction: discord.Interaction):
             self.consent_manager.give_consent(interaction.user.id, interaction.guild.id)
@@ -162,6 +161,8 @@ class Birthday:
             tree.add_command(set_birthday_command)
         if not tree.get_command("get_birthday"):
             tree.add_command(get_birthday_command)
+        if not tree.get_command("set_birthday_channel"):
+            tree.add_command(set_birthday_channel)
 
 
 class BirthdayModal(discord.ui.Modal, title="Set your birthday"):
