@@ -81,6 +81,22 @@ class Birthday:
     async def delete_birthday(self, user_id, guild_id):
         self.data_access_manager.delete_data(user_id, guild_id)
 
+    async def set_birthday(self, interaction: discord.Interaction, user_id: int, guild_id: int, birthday_str: str):
+        if not self.consent_manager.has_consent(user_id, guild_id):
+            await self.consent_manager.request_consent(interaction)
+            return  # Exit early since consent hasn't been given yet
+
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("""INSERT INTO birthdays (user_id, guild_id, birthday)
+                       VALUES (?, ?, ?) ON CONFLICT(user_id, guild_id)
+                       DO UPDATE SET birthday = excluded.birthday;""",
+                       (user_id, guild_id, birthday_str))
+        conn.commit()
+        conn.close()
+        self.logger.info(f"{user_id}'s birthday has been set to {birthday_str}.")
+        await interaction.response.send_message(f"Your birthday has been set to {birthday_str}.", ephemeral=True)
+
     async def get_birthday(self, user_id, guild_id):
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
