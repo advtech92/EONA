@@ -3,8 +3,8 @@ from discord import app_commands
 import sqlite3
 import os
 from logger import logger
-from data_management.consent import ConsentManager
-from data_management.data_access import DataAccessManager
+from user_data.consent import ConsentManager
+from user_data.data_access import DataAccessManager
 import datetime
 import config
 
@@ -12,7 +12,7 @@ import config
 class Birthday:
     def __init__(self, client):
         self.client = client
-        self.db_path = "data/EONA.db"
+        self.db_path = "data/elysia.db"
         self.logger = logger
         self.consent_manager = ConsentManager(self.db_path)
         self.data_access_manager = DataAccessManager(self.db_path)

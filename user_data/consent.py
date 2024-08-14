@@ -4,7 +4,7 @@ from logger import logger
 
 
 class ConsentManager:
-    def __init__(self, db_path="data/EONA.db"):
+    def __init__(self, db_path="data/elysia.db"):
         self.db_path = db_path
         self.ensure_db()
 

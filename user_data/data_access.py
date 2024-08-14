@@ -4,7 +4,7 @@ from logger import logger
 
 
 class DataAccessManager:
-    def __init__(self, db_path="data/EONA.db"):
+    def __init__(self, db_path="data/elysia.db"):
         self.db_path = db_path
 
     def delete_user_data(self, user_id, guild_id):

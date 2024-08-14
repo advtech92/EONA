@@ -9,7 +9,7 @@ TOKEN = config["TOKEN"]
 intents = discord.Intents.default()
 
 
-class EONA(discord.Client):
+class Elysia(discord.Client):
     def __init__(self):
         super().__init__(intents=intents)
         self.tree = discord.app_commands.CommandTree(self)
@@ -35,7 +35,7 @@ class EONA(discord.Client):
             logger.error("Birthday module not enabled")
 
 
-client = EONA()
+client = Elysia()
 
 
 @client.event
